@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>FarmAssist — Mobile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://unpkg.com/lucide-static/font/lucide.css" rel="stylesheet">
+  <style>
+    body { background:#000; color:#d1fae5; font-family:Inter, sans-serif; }
+    .glass { background:rgba(34,197,94,0.08); backdrop-filter:blur(8px); border:1px solid rgba(34,197,94,0.12); }
+
+    /* Waves */
+    .wave { width:8px; height:14px; margin:0 2px; background:#22c55e; border-radius:4px; transition:height .2s ease; }
+    .wave.animated { animation:wavePulse 1s infinite ease-in-out; }
+    @keyframes wavePulse { 0%,100%{transform:scaleY(.4);} 50%{transform:scaleY(1);} }
+
+    /* Mic button */
+    .mic-btn { width:80px; height:80px; }
+    @media(min-width:768px){ .mic-btn{ width:110px; height:110px; } }
+
+    /* History panel */
+    #historyPanel { max-height:0; overflow:hidden; transition:max-height .3s ease; }
+    #historyPanel.expanded { max-height:12rem; }
+  </style>
+</head>
+<body class="flex flex-col h-screen">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-4 py-3 glass">
+    <div class="flex items-center gap-2">
+      <i class="lucide lucide-sprout text-green-400"></i>
+      <span class="font-semibold">FarmAssist</span>
+    </div>
+    <i id="wifiIcon" class="lucide lucide-wifi text-green-400"></i>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col items-center justify-center px-4 text-center">
+    <p id="statusText" class="text-sm text-green-300 mb-3">Ready to assist you</p>
+    <p id="transcript" class="text-lg text-emerald-100 min-h-[36px] mb-6"></p>
+
+    <!-- Waveform -->
+    <div class="flex justify-center mb-6">
+      <div class="flex">
+        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
+        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
+        <div class="wave"></div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <button id="toggleHistory" class="text-xs px-3 py-1 rounded-full bg-green-700/30 mb-2">Show History</button>
+    <div id="historyPanel" class="w-full glass rounded-lg p-3 text-left">
+      <div id="historyList" class="text-xs text-green-200 space-y-2"></div>
+      <p id="historyEmpty" class="text-xs text-green-400/50 text-center">No history yet</p>
+    </div>
+  </main>
+
+  <!-- Mic Button -->
+  <footer class="pb-6 flex justify-center">
+    <button id="micBtn" class="mic-btn rounded-full bg-green-600 flex items-center justify-center">
+      <i id="micIcon" class="lucide lucide-mic text-2xl text-black"></i>
+    </button>
+  </footer>
+
+  <script>
+    const micBtn=document.getElementById("micBtn"),micIcon=document.getElementById("micIcon"),
+          waves=document.querySelectorAll(".wave"),statusText=document.getElementById("statusText"),
+          transcriptEl=document.getElementById("transcript"),historyPanel=document.getElementById("historyPanel"),
+          toggleHistory=document.getElementById("toggleHistory"),historyList=document.getElementById("historyList"),
+          historyEmpty=document.getElementById("historyEmpty");
+    let listening=false,recognition,history=[];
+
+    toggleHistory.onclick=()=>{
+      historyPanel.classList.toggle("expanded");
+      toggleHistory.textContent=historyPanel.classList.contains("expanded")?"Hide History":"Show History";
+    };
+
+    if("webkitSpeechRecognition"in window||"SpeechRecognition"in window){
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      recognition=new SR(); recognition.continuous=true; recognition.interimResults=true; recognition.lang="en-US";
+
+      recognition.onstart=()=>{
+        listening=true;
+        micBtn.classList.replace("bg-green-600","bg-red-600");
+        micIcon.className="lucide lucide-square text-2xl text-black";
+        statusText.textContent="Listening...";
+        waves.forEach(w=>w.classList.add("animated"));
+      };
+      recognition.onend=()=>{
+        listening=false;
+        micBtn.classList.replace("bg-red-600","bg-green-600");
+        micIcon.className="lucide lucide-mic text-2xl text-black";
+        statusText.textContent="Ready to assist you";
+        waves.forEach(w=>w.classList.remove("animated"));
+      };
+      recognition.onresult=e=>{
+        let text=""; for(let i=e.resultIndex;i<e.results.length;i++){ text+=e.results[i][0].transcript; if(e.results[i].isFinal){history.unshift(text); renderHistory();}}
+        transcriptEl.textContent=text;
+      };
+    }
+
+    micBtn.onclick=()=>{ if(!recognition) return alert("Speech Recognition not supported"); listening?recognition.stop():recognition.start(); };
+    function renderHistory(){ historyList.innerHTML=""; if(history.length===0){historyEmpty.style.display="block";return;} historyEmpty.style.display="none"; history.forEach(line=>{let p=document.createElement("p"); p.textContent=line; historyList.appendChild(p);}); }
+  </script>
+</body>
+</html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>FarmAssist — Mobile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://unpkg.com/lucide-static/font/lucide.css" rel="stylesheet">
+  <style>
+    body { background:#000; color:#d1fae5; font-family:Inter, sans-serif; }
+    .glass { background:rgba(34,197,94,0.08); backdrop-filter:blur(8px); border:1px solid rgba(34,197,94,0.12); }
+
+    /* Waves */
+    .wave { width:8px; height:14px; margin:0 2px; background:#22c55e; border-radius:4px; transition:height .2s ease; }
+    .wave.animated { animation:wavePulse 1s infinite ease-in-out; }
+    @keyframes wavePulse { 0%,100%{transform:scaleY(.4);} 50%{transform:scaleY(1);} }
+
+    /* Mic button */
+    .mic-btn { width:80px; height:80px; }
+    @media(min-width:768px){ .mic-btn{ width:110px; height:110px; } }
+
+    /* History panel */
+    #historyPanel { max-height:0; overflow:hidden; transition:max-height .3s ease; }
+    #historyPanel.expanded { max-height:12rem; }
+  </style>
+</head>
+<body class="flex flex-col h-screen">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-4 py-3 glass">
+    <div class="flex items-center gap-2">
+      <i class="lucide lucide-sprout text-green-400"></i>
+      <span class="font-semibold">FarmAssist</span>
+    </div>
+    <i id="wifiIcon" class="lucide lucide-wifi text-green-400"></i>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col items-center justify-center px-4 text-center">
+    <p id="statusText" class="text-sm text-green-300 mb-3">Ready to assist you</p>
+    <p id="transcript" class="text-lg text-emerald-100 min-h-[36px] mb-6"></p>
+
+    <!-- Waveform -->
+    <div class="flex justify-center mb-6">
+      <div class="flex">
+        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
+        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
+        <div class="wave"></div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <button id="toggleHistory" class="text-xs px-3 py-1 rounded-full bg-green-700/30 mb-2">Show History</button>
+    <div id="historyPanel" class="w-full glass rounded-lg p-3 text-left">
+      <div id="historyList" class="text-xs text-green-200 space-y-2"></div>
+      <p id="historyEmpty" class="text-xs text-green-400/50 text-center">No history yet</p>
+    </div>
+  </main>
+
+  <!-- Mic Button -->
+  <footer class="pb-6 flex justify-center">
+    <button id="micBtn" class="mic-btn rounded-full bg-green-600 flex items-center justify-center">
+      <i id="micIcon" class="lucide lucide-mic text-2xl text-black"></i>
+    </button>
+  </footer>
+
+  <script>
+    const micBtn=document.getElementById("micBtn"),micIcon=document.getElementById("micIcon"),
+          waves=document.querySelectorAll(".wave"),statusText=document.getElementById("statusText"),
+          transcriptEl=document.getElementById("transcript"),historyPanel=document.getElementById("historyPanel"),
+          toggleHistory=document.getElementById("toggleHistory"),historyList=document.getElementById("historyList"),
+          historyEmpty=document.getElementById("historyEmpty");
+    let listening=false,recognition,history=[];
+
+    toggleHistory.onclick=()=>{
+      historyPanel.classList.toggle("expanded");
+      toggleHistory.textContent=historyPanel.classList.contains("expanded")?"Hide History":"Show History";
+    };
+
+    if("webkitSpeechRecognition"in window||"SpeechRecognition"in window){
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      recognition=new SR(); recognition.continuous=true; recognition.interimResults=true; recognition.lang="en-US";
+
+      recognition.onstart=()=>{
+        listening=true;
+        micBtn.classList.replace("bg-green-600","bg-red-600");
+        micIcon.className="lucide lucide-square text-2xl text-black";
+        statusText.textContent="Listening...";
+        waves.forEach(w=>w.classList.add("animated"));
+      };
+      recognition.onend=()=>{
+        listening=false;
+        micBtn.classList.replace("bg-red-600","bg-green-600");
+        micIcon.className="lucide lucide-mic text-2xl text-black";
+        statusText.textContent="Ready to assist you";
+        waves.forEach(w=>w.classList.remove("animated"));
+      };
+      recognition.onresult=e=>{
+        let text=""; for(let i=e.resultIndex;i<e.results.length;i++){ text+=e.results[i][0].transcript; if(e.results[i].isFinal){history.unshift(text); renderHistory();}}
+        transcriptEl.textContent=text;
+      };
+    }
+
+    micBtn.onclick=()=>{ if(!recognition) return alert("Speech Recognition not supported"); listening?recognition.stop():recognition.start(); };
+    function renderHistory(){ historyList.innerHTML=""; if(history.length===0){historyEmpty.style.display="block";return;} historyEmpty.style.display="none"; history.forEach(line=>{let p=document.createElement("p"); p.textContent=line; historyList.appendChild(p);}); }
+  </script>
+</body>
+</html>
