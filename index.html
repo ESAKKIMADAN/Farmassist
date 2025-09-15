@@ -2,215 +2,531 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>FarmAssist — Mobile</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FarmAssist — AI Farm Assistant (Voice)</title>
+
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Lucide icons (for simple icons) -->
   <link href="https://unpkg.com/lucide-static/font/lucide.css" rel="stylesheet">
+
+  <!-- Google fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
   <style>
-    body { background:#000; color:#d1fae5; font-family:Inter, sans-serif; }
-    .glass { background:rgba(34,197,94,0.08); backdrop-filter:blur(8px); border:1px solid rgba(34,197,94,0.12); }
+    :root{
+      --farm-green:#22c55e;
+      --farm-green-dark:#15803d;
+      --farm-black:#000000;
+      --glass: rgba(34,197,94,0.08);
+    }
 
-    /* Waves */
-    .wave { width:8px; height:14px; margin:0 2px; background:#22c55e; border-radius:4px; transition:height .2s ease; }
-    .wave.animated { animation:wavePulse 1s infinite ease-in-out; }
-    @keyframes wavePulse { 0%,100%{transform:scaleY(.4);} 50%{transform:scaleY(1);} }
+    html,body { height:100%; }
+    body{
+      margin:0;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: radial-gradient(1200px 600px at 10% 10%, rgba(16,16,16,0.6), #000 40%), #000;
+      color: #d1fae5;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
 
-    /* Mic button */
-    .mic-btn { width:80px; height:80px; }
-    @media(min-width:768px){ .mic-btn{ width:110px; height:110px; } }
+    /* glass panel look */
+    .glass {
+      background: var(--glass);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(34,197,94,0.12);
+    }
 
-    /* History panel */
-    #historyPanel { max-height:0; overflow:hidden; transition:max-height .3s ease; }
-    #historyPanel.expanded { max-height:12rem; }
+    /* waveform bars base */
+    .wave {
+      width: 10px;
+      height: 14px; /* idle height */
+      margin: 0 5px;
+      background: rgba(34,197,94,0.95);
+      border-radius: 5px;
+      transition: height 120ms linear, background 200ms linear;
+      transform-origin: bottom;
+    }
+
+    /* animated (listening) default bounce */
+    .wave.animated {
+      /* will be driven by JS (height changes), optional CSS fallback */
+      animation: wavePulse 1.2s infinite ease-in-out;
+    }
+    @keyframes wavePulse {
+      0%,100% { transform: scaleY(0.5); }
+      50% { transform: scaleY(1.15); }
+    }
+
+    /* subtle fade-in for history entries */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 260ms ease both; }
+
+    /* small shadow around mic when active */
+    .mic-active {
+      box-shadow: 0 12px 40px rgba(34,197,94,0.12), 0 0 40px rgba(34,197,94,0.15);
+    }
+    .mic-listening {
+      box-shadow: 0 18px 60px rgba(239,68,68,0.18), 0 0 50px rgba(239,68,68,0.12);
+    }
+
+    /* panel scrollbar style */
+    .history-scroll::-webkit-scrollbar { width:8px; height:8px; }
+    .history-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 8px; }
+
+    /* responsive adjustments */
+    @media (min-width:768px) {
+      .title-small{ font-size:20px; }
+      .transcript{ font-size:28px; }
+    }
+    @media (max-width:420px) {
+      .wave { margin: 0 3px; width: 8px; }
+      .mic-btn { width:72px; height:72px; }
+    }
   </style>
 </head>
-<body class="flex flex-col h-screen">
+<body class="min-h-screen flex flex-col">
 
-  <!-- Header -->
-  <header class="flex items-center justify-between px-4 py-3 glass">
-    <div class="flex items-center gap-2">
-      <i class="lucide lucide-sprout text-green-400"></i>
-      <span class="font-semibold">FarmAssist</span>
-    </div>
-    <i id="wifiIcon" class="lucide lucide-wifi text-green-400"></i>
-  </header>
-
-  <!-- Main -->
-  <main class="flex-1 flex flex-col items-center justify-center px-4 text-center">
-    <p id="statusText" class="text-sm text-green-300 mb-3">Ready to assist you</p>
-    <p id="transcript" class="text-lg text-emerald-100 min-h-[36px] mb-6"></p>
-
-    <!-- Waveform -->
-    <div class="flex justify-center mb-6">
-      <div class="flex">
-        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
-        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
-        <div class="wave"></div>
+  <!-- Top header -->
+  <header class="w-full max-w-3xl mx-auto px-5 py-4 flex items-center justify-between glass rounded-b-xl">
+    <div class="flex items-center gap-3">
+      <button id="btn-back" class="p-2 rounded-full hover:bg-white/3 transition" aria-label="Back">
+        <i class="lucide lucide-chevron-left"></i>
+      </button>
+      <div class="flex items-center gap-2">
+        <i class="lucide lucide-sprout text-2xl text-emerald-300"></i>
+        <div>
+          <div class="font-semibold text-white">FarmAssist</div>
+          <div class="text-xs text-emerald-200/70">AI Farm Assistant</div>
+        </div>
       </div>
     </div>
 
-    <!-- History -->
-    <button id="toggleHistory" class="text-xs px-3 py-1 rounded-full bg-green-700/30 mb-2">Show History</button>
-    <div id="historyPanel" class="w-full glass rounded-lg p-3 text-left">
-      <div id="historyList" class="text-xs text-green-200 space-y-2"></div>
-      <p id="historyEmpty" class="text-xs text-green-400/50 text-center">No history yet</p>
+    <div class="flex items-center gap-3">
+      <div id="onlineIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full glass text-sm">
+        <i id="wifiIcon" class="lucide lucide-wifi"></i>
+        <span id="onlineText" class="text-xs">Online</span>
+      </div>
+      <button id="btn-settings" class="p-2 rounded-full hover:bg-white/3 transition" aria-label="Settings">
+        <i class="lucide lucide-settings"></i>
+      </button>
     </div>
-  </main>
-
-  <!-- Mic Button -->
-  <footer class="pb-6 flex justify-center">
-    <button id="micBtn" class="mic-btn rounded-full bg-green-600 flex items-center justify-center">
-      <i id="micIcon" class="lucide lucide-mic text-2xl text-black"></i>
-    </button>
-  </footer>
-
-  <script>
-    const micBtn=document.getElementById("micBtn"),micIcon=document.getElementById("micIcon"),
-          waves=document.querySelectorAll(".wave"),statusText=document.getElementById("statusText"),
-          transcriptEl=document.getElementById("transcript"),historyPanel=document.getElementById("historyPanel"),
-          toggleHistory=document.getElementById("toggleHistory"),historyList=document.getElementById("historyList"),
-          historyEmpty=document.getElementById("historyEmpty");
-    let listening=false,recognition,history=[];
-
-    toggleHistory.onclick=()=>{
-      historyPanel.classList.toggle("expanded");
-      toggleHistory.textContent=historyPanel.classList.contains("expanded")?"Hide History":"Show History";
-    };
-
-    if("webkitSpeechRecognition"in window||"SpeechRecognition"in window){
-      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      recognition=new SR(); recognition.continuous=true; recognition.interimResults=true; recognition.lang="en-US";
-
-      recognition.onstart=()=>{
-        listening=true;
-        micBtn.classList.replace("bg-green-600","bg-red-600");
-        micIcon.className="lucide lucide-square text-2xl text-black";
-        statusText.textContent="Listening...";
-        waves.forEach(w=>w.classList.add("animated"));
-      };
-      recognition.onend=()=>{
-        listening=false;
-        micBtn.classList.replace("bg-red-600","bg-green-600");
-        micIcon.className="lucide lucide-mic text-2xl text-black";
-        statusText.textContent="Ready to assist you";
-        waves.forEach(w=>w.classList.remove("animated"));
-      };
-      recognition.onresult=e=>{
-        let text=""; for(let i=e.resultIndex;i<e.results.length;i++){ text+=e.results[i][0].transcript; if(e.results[i].isFinal){history.unshift(text); renderHistory();}}
-        transcriptEl.textContent=text;
-      };
-    }
-
-    micBtn.onclick=()=>{ if(!recognition) return alert("Speech Recognition not supported"); listening?recognition.stop():recognition.start(); };
-    function renderHistory(){ historyList.innerHTML=""; if(history.length===0){historyEmpty.style.display="block";return;} historyEmpty.style.display="none"; history.forEach(line=>{let p=document.createElement("p"); p.textContent=line; historyList.appendChild(p);}); }
-  </script>
-</body>
-</html>
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>FarmAssist — Mobile</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://unpkg.com/lucide-static/font/lucide.css" rel="stylesheet">
-  <style>
-    body { background:#000; color:#d1fae5; font-family:Inter, sans-serif; }
-    .glass { background:rgba(34,197,94,0.08); backdrop-filter:blur(8px); border:1px solid rgba(34,197,94,0.12); }
-
-    /* Waves */
-    .wave { width:8px; height:14px; margin:0 2px; background:#22c55e; border-radius:4px; transition:height .2s ease; }
-    .wave.animated { animation:wavePulse 1s infinite ease-in-out; }
-    @keyframes wavePulse { 0%,100%{transform:scaleY(.4);} 50%{transform:scaleY(1);} }
-
-    /* Mic button */
-    .mic-btn { width:80px; height:80px; }
-    @media(min-width:768px){ .mic-btn{ width:110px; height:110px; } }
-
-    /* History panel */
-    #historyPanel { max-height:0; overflow:hidden; transition:max-height .3s ease; }
-    #historyPanel.expanded { max-height:12rem; }
-  </style>
-</head>
-<body class="flex flex-col h-screen">
-
-  <!-- Header -->
-  <header class="flex items-center justify-between px-4 py-3 glass">
-    <div class="flex items-center gap-2">
-      <i class="lucide lucide-sprout text-green-400"></i>
-      <span class="font-semibold">FarmAssist</span>
-    </div>
-    <i id="wifiIcon" class="lucide lucide-wifi text-green-400"></i>
   </header>
 
-  <!-- Main -->
-  <main class="flex-1 flex flex-col items-center justify-center px-4 text-center">
-    <p id="statusText" class="text-sm text-green-300 mb-3">Ready to assist you</p>
-    <p id="transcript" class="text-lg text-emerald-100 min-h-[36px] mb-6"></p>
+  <!-- Main content area -->
+  <main class="flex-1 w-full max-w-3xl mx-auto px-6 py-8 flex flex-col items-center justify-center">
 
-    <!-- Waveform -->
-    <div class="flex justify-center mb-6">
-      <div class="flex">
-        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
-        <div class="wave"></div><div class="wave"></div><div class="wave"></div>
-        <div class="wave"></div>
+    <!-- live status -->
+    <div id="statusPill" class="glass px-4 py-2 rounded-full inline-flex items-center gap-3 mb-6 select-none cursor-default">
+      <i id="statusPillIcon" class="lucide lucide-mic-off"></i>
+      <span id="statusText" class="text-sm">Ready to assist you</span>
+    </div>
+
+    <!-- live transcript (center) -->
+    <div id="transcriptionContainer" class="w-full max-w-2xl text-center mb-8">
+      <p id="transcript" class="transcript text-2xl md:text-3xl text-emerald-100 font-light min-h-[56px]"></p>
+    </div>
+
+    <!-- centered waveform -->
+    <div id="visualizer" class="w-full flex justify-center items-end mb-8" aria-hidden="true">
+      <div id="waveRow" class="flex items-end">
+        <!-- 11 bars for a fuller look -->
+        <div class="wave" data-index="0"></div>
+        <div class="wave" data-index="1"></div>
+        <div class="wave" data-index="2"></div>
+        <div class="wave" data-index="3"></div>
+        <div class="wave" data-index="4"></div>
+        <div class="wave" data-index="5"></div>
+        <div class="wave" data-index="6"></div>
+        <div class="wave" data-index="7"></div>
+        <div class="wave" data-index="8"></div>
+        <div class="wave" data-index="9"></div>
+        <div class="wave" data-index="10"></div>
       </div>
     </div>
 
-    <!-- History -->
-    <button id="toggleHistory" class="text-xs px-3 py-1 rounded-full bg-green-700/30 mb-2">Show History</button>
-    <div id="historyPanel" class="w-full glass rounded-lg p-3 text-left">
-      <div id="historyList" class="text-xs text-green-200 space-y-2"></div>
-      <p id="historyEmpty" class="text-xs text-green-400/50 text-center">No history yet</p>
+    <!-- conversation history toggle & panel -->
+    <div class="w-full max-w-2xl mb-6">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-sm font-medium text-emerald-200">Conversation History</h3>
+        <div class="flex items-center gap-2">
+          <button id="btn-clear" class="text-xs px-3 py-1 rounded-full glass hover:bg-emerald-800/30 transition">Clear</button>
+          <button id="btn-toggle-history" class="text-xs px-3 py-1 rounded-full glass hover:bg-emerald-800/30 transition">Expand</button>
+        </div>
+      </div>
+
+      <div id="historyPanel" class="glass rounded-xl p-3 max-h-48 overflow-auto history-scroll">
+        <div id="historyList" class="space-y-2">
+          <!-- History items inserted here -->
+        </div>
+        <div id="historyEmpty" class="text-xs text-emerald-200/40 text-center py-4">No conversation history yet — your voice interactions will appear here.</div>
+      </div>
     </div>
+
   </main>
 
-  <!-- Mic Button -->
-  <footer class="pb-6 flex justify-center">
-    <button id="micBtn" class="mic-btn rounded-full bg-green-600 flex items-center justify-center">
-      <i id="micIcon" class="lucide lucide-mic text-2xl text-black"></i>
-    </button>
+  <!-- bottom mic button -->
+  <footer class="w-full max-w-3xl mx-auto px-6 pb-8">
+    <div class="flex justify-center">
+      <button id="micBtn" class="mic-btn mic-idle w-24 h-24 md:w-28 md:h-28 rounded-full bg-emerald-500 flex items-center justify-center text-black font-semibold mic-active transition-transform hover:scale-105 focus:outline-none" aria-label="Start listening" title="Tap to start/stop">
+        <i id="micBtnIcon" class="lucide lucide-mic text-3xl md:text-4xl"></i>
+      </button>
+    </div>
   </footer>
 
+  <!-- JS -->
   <script>
-    const micBtn=document.getElementById("micBtn"),micIcon=document.getElementById("micIcon"),
-          waves=document.querySelectorAll(".wave"),statusText=document.getElementById("statusText"),
-          transcriptEl=document.getElementById("transcript"),historyPanel=document.getElementById("historyPanel"),
-          toggleHistory=document.getElementById("toggleHistory"),historyList=document.getElementById("historyList"),
-          historyEmpty=document.getElementById("historyEmpty");
-    let listening=false,recognition,history=[];
+    // Configuration & DOM nodes
+    const STATUS_PILL = document.getElementById('statusPill');
+    const STATUS_TEXT = document.getElementById('statusText');
+    const STATUS_ICON = document.getElementById('statusPillIcon');
+    const TRANSCRIPT = document.getElementById('transcript');
+    const MIC_BTN = document.getElementById('micBtn');
+    const MIC_ICON = document.getElementById('micBtnIcon');
+    const WAVE_ELEMENTS = Array.from(document.querySelectorAll('.wave'));
+    const HISTORY_LIST = document.getElementById('historyList');
+    const HISTORY_PANEL = document.getElementById('historyPanel');
+    const HISTORY_EMPTY = document.getElementById('historyEmpty');
+    const BTN_CLEAR = document.getElementById('btn-clear');
+    const BTN_TOGGLE_HISTORY = document.getElementById('btn-toggle-history');
+    const ONLINE_TEXT = document.getElementById('onlineText');
+    const WIFI_ICON = document.getElementById('wifiIcon');
 
-    toggleHistory.onclick=()=>{
-      historyPanel.classList.toggle("expanded");
-      toggleHistory.textContent=historyPanel.classList.contains("expanded")?"Hide History":"Show History";
-    };
+    const LOCAL_KEY = 'farmassist-conversation-history-v1';
+    const MAX_HISTORY = 50;
 
-    if("webkitSpeechRecognition"in window||"SpeechRecognition"in window){
-      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      recognition=new SR(); recognition.continuous=true; recognition.interimResults=true; recognition.lang="en-US";
+    // state
+    let isListening = false;
+    let recognition = null;
+    let audioStream = null;
+    let audioContext = null;
+    let analyser = null;
+    let rafId = null;
+    let interimTranscript = '';
 
-      recognition.onstart=()=>{
-        listening=true;
-        micBtn.classList.replace("bg-green-600","bg-red-600");
-        micIcon.className="lucide lucide-square text-2xl text-black";
-        statusText.textContent="Listening...";
-        waves.forEach(w=>w.classList.add("animated"));
+    // Load saved history
+    let history = [];
+    function loadHistory(){
+      const raw = localStorage.getItem(LOCAL_KEY);
+      if(!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        history = parsed.map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+      } catch(e) {
+        console.error('Failed to parse history', e);
+        history = [];
+      }
+    }
+    function saveHistory(){
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(history.slice(0,MAX_HISTORY)));
+    }
+
+    function renderHistory(){
+      HISTORY_LIST.innerHTML = '';
+      if(history.length === 0){
+        HISTORY_EMPTY.style.display = 'block';
+        return;
+      }
+      HISTORY_EMPTY.style.display = 'none';
+      history.forEach(entry => {
+        const el = document.createElement('div');
+        el.className = 'flex items-start justify-between gap-3 p-3 rounded-lg hover:bg-emerald-900/10 transition fade-up';
+        el.innerHTML = `
+          <div class="flex-1">
+            <div class="text-xs text-emerald-300/80">${entry.type === 'voice' ? 'Voice' : 'Text'} • ${timeAgo(entry.timestamp)}</div>
+            <div class="mt-1 text-sm text-emerald-100">${escapeHtml(entry.transcript)}</div>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <button data-id="${entry.id}" class="remove-entry text-xs px-2 py-1 rounded-md hover:bg-emerald-800/30">Remove</button>
+          </div>
+        `;
+        HISTORY_LIST.appendChild(el);
+      });
+
+      // wire up remove buttons
+      HISTORY_LIST.querySelectorAll('.remove-entry').forEach(btn=>{
+        btn.addEventListener('click', (ev)=>{
+          const id = btn.getAttribute('data-id');
+          history = history.filter(h=>h.id !== id);
+          saveHistory();
+          renderHistory();
+        });
+      });
+    }
+
+    function addHistoryEntry(text, type='voice'){
+      const trimmed = (text || '').trim();
+      if(!trimmed) return;
+      const entry = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        transcript: trimmed,
+        timestamp: new Date(),
+        type
       };
-      recognition.onend=()=>{
-        listening=false;
-        micBtn.classList.replace("bg-red-600","bg-green-600");
-        micIcon.className="lucide lucide-mic text-2xl text-black";
-        statusText.textContent="Ready to assist you";
-        waves.forEach(w=>w.classList.remove("animated"));
+      history.unshift(entry);
+      history = history.slice(0, MAX_HISTORY);
+      saveHistory();
+      renderHistory();
+    }
+
+    BTN_CLEAR.addEventListener('click', ()=>{
+      if(!confirm('Clear all conversation history?')) return;
+      history = [];
+      saveHistory();
+      renderHistory();
+    });
+
+    BTN_TOGGLE_HISTORY.addEventListener('click', ()=>{
+      if(HISTORY_PANEL.style.maxHeight && HISTORY_PANEL.style.maxHeight !== '0px'){
+        // collapse
+        HISTORY_PANEL.style.maxHeight = '0';
+        BTN_TOGGLE_HISTORY.textContent = 'Expand';
+      } else {
+        HISTORY_PANEL.style.maxHeight = '12rem';
+        BTN_TOGGLE_HISTORY.textContent = 'Collapse';
+      }
+    });
+
+    // helper: time ago
+    function timeAgo(date){
+      const now = new Date();
+      const diff = Math.floor((now - (new Date(date)))/1000);
+      if(diff < 60) return `${diff}s ago`;
+      if(diff < 3600) return `${Math.floor(diff/60)}m ago`;
+      if(diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+      return (new Date(date)).toLocaleString();
+    }
+
+    function escapeHtml(text){
+      return text.replace(/[&<>"']/g, (s)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s]));
+    }
+
+    // Visualizer: start/stop analyser using getUserMedia
+    async function startAudioVisualizer(){
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(audioStream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        drawVisualizer();
+      } catch(e){
+        console.warn('Audio visualizer error (microphone permission):', e);
+      }
+    }
+
+    function stopAudioVisualizer(){
+      if(rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if(analyser) {
+        analyser.disconnect();
+        analyser = null;
+      }
+      if(audioContext){
+        try{ audioContext.close(); }catch(e){}
+        audioContext = null;
+      }
+      if(audioStream){
+        audioStream.getTracks().forEach(t=>t.stop());
+        audioStream = null;
+      }
+      // reset bars to idle height
+      WAVE_ELEMENTS.forEach(w => {
+        w.style.height = '14px';
+        w.classList.remove('animated');
+        w.style.background = 'rgba(34,197,94,0.95)';
+      });
+    }
+
+    function drawVisualizer(){
+      if(!analyser) return;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+
+      // compute a few bands from frequency data to map to bars
+      // simple approach: sample evenly across the data
+      const n = WAVE_ELEMENTS.length;
+      for(let i=0;i<n;i++){
+        const start = Math.floor(i * data.length / n);
+        const end = Math.floor((i+1) * data.length / n);
+        let sum=0;
+        for(let j=start;j<end;j++){ sum += data[j]; }
+        const avg = sum / (end-start || 1);
+        // map avg (0..255) to height (14..86)
+        const minH = 14, maxH = 86;
+        const h = Math.max(minH, Math.min(maxH, Math.round((avg/255) * (maxH-minH) + minH)));
+        const bar = WAVE_ELEMENTS[i];
+        bar.style.height = h + 'px';
+        bar.classList.add('animated');
+        // color shift: stronger -> more redish
+        const pct = avg/255;
+        if(pct > 0.6) bar.style.background = 'rgba(239,68,68,0.95)'; // red on loud
+        else if(pct > 0.3) bar.style.background = 'rgba(34,197,94,0.95)'; // green medium
+        else bar.style.background = 'rgba(34,197,94,0.6)'; // subtle when low
+      }
+      rafId = requestAnimationFrame(drawVisualizer);
+    }
+
+    // Fallback idle visuals (small equal bars)
+    function setIdleVisualizer(){
+      WAVE_ELEMENTS.forEach((w, i) => {
+        w.style.height = '14px';
+        w.classList.remove('animated');
+        w.style.background = 'rgba(34,197,94,0.95)';
+      });
+    }
+
+    // Speech recognition setup
+    function initSpeechRecognition(){
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(!SpeechRecognition) return null;
+      const r = new SpeechRecognition();
+      r.lang = 'en-US';
+      r.interimResults = true;
+      r.continuous = true;
+      r.maxAlternatives = 1;
+      return r;
+    }
+
+    function startListening(){
+      if(!recognition){
+        recognition = initSpeechRecognition();
+        if(!recognition){
+          alert("Speech Recognition API not supported by this browser. Use Chrome/Edge.");
+          return;
+        }
+      }
+
+      try {
+        recognition.start();
+      } catch(e){
+        // Some browsers throw if start called multiple times
+        console.warn('recognition.start() failed:', e);
+      }
+    }
+
+    function stopListening(){
+      if(recognition){
+        try { recognition.stop(); } catch(e) {}
+      }
+    }
+
+    // hookup speech handlers
+    function attachRecognitionHandlers(){
+      if(!recognition) return;
+
+      recognition.onstart = () => {
+        isListening = true;
+        STATUS_TEXT.textContent = 'Listening to your farm questions...';
+        STATUS_ICON.className = 'lucide lucide-mic';
+        MIC_BTN.classList.remove('bg-emerald-500','mic-idle');
+        MIC_BTN.classList.add('bg-red-600','mic-listening');
+        MIC_ICON.className = 'lucide lucide-square text-3xl';
+        startAudioVisualizer();
       };
-      recognition.onresult=e=>{
-        let text=""; for(let i=e.resultIndex;i<e.results.length;i++){ text+=e.results[i][0].transcript; if(e.results[i].isFinal){history.unshift(text); renderHistory();}}
-        transcriptEl.textContent=text;
+
+      recognition.onend = () => {
+        // onend fires when recognition service stops
+        isListening = false;
+        STATUS_TEXT.textContent = 'Ready to assist you';
+        STATUS_ICON.className = 'lucide lucide-mic-off';
+        MIC_BTN.classList.remove('bg-red-600','mic-listening');
+        MIC_BTN.classList.add('bg-emerald-500','mic-idle');
+        MIC_ICON.className = 'lucide lucide-mic text-3xl';
+        stopAudioVisualizer();
+        // commit any final interim transcript (if present)
+        if(interimTranscript && interimTranscript.trim()){
+          addHistoryEntry(interimTranscript, 'voice');
+          interimTranscript = '';
+        }
+        TRANSCRIPT.textContent = '';
+      };
+
+      recognition.onerror = (ev) => {
+        console.warn('SpeechRecognition error', ev);
+      };
+
+      recognition.onresult = (event) => {
+        let combined = '';
+        for(let i = event.resultIndex; i < event.results.length; i++){
+          const res = event.results[i];
+          combined += res[0].transcript;
+          // if final result -> save to history
+          if(res.isFinal){
+            addHistoryEntry(res[0].transcript || '', 'voice');
+          } else {
+            // interim piece
+          }
+        }
+        interimTranscript = combined;
+        TRANSCRIPT.textContent = combined;
       };
     }
 
-    micBtn.onclick=()=>{ if(!recognition) return alert("Speech Recognition not supported"); listening?recognition.stop():recognition.start(); };
-    function renderHistory(){ historyList.innerHTML=""; if(history.length===0){historyEmpty.style.display="block";return;} historyEmpty.style.display="none"; history.forEach(line=>{let p=document.createElement("p"); p.textContent=line; historyList.appendChild(p);}); }
+    // Wire UI click on mic
+    MIC_BTN.addEventListener('click', async ()=>{
+      if(isListening){
+        stopListening();
+      } else {
+        // initialize recognition if needed
+        if(!recognition){
+          recognition = initSpeechRecognition();
+          if(!recognition){
+            alert("Speech Recognition API not supported by this browser. Use Chrome/Edge.");
+            return;
+          }
+          attachRecognitionHandlers();
+        }
+        startListening();
+      }
+    });
+
+    // network online/offline indicators
+    function updateOnlineStatus(){
+      const online = navigator.onLine;
+      ONLINE_TEXT.textContent = online ? 'Online' : 'Offline';
+      WIFI_ICON.className = online ? 'lucide lucide-wifi' : 'lucide lucide-wifi-off';
+      ONLINE_TEXT.style.color = online ? '' : '#ef4444';
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // initial load
+    (function init(){
+      loadHistory();
+      renderHistory();
+      setIdleVisualizer();
+      updateOnlineStatus();
+
+      // collapse history initially
+      HISTORY_PANEL.style.maxHeight = '12rem';
+      BTN_TOGGLE_HISTORY.textContent = 'Collapse';
+
+      // if no speech support, display warning in status
+      if(!(window.SpeechRecognition || window.webkitSpeechRecognition)){
+        STATUS_TEXT.textContent = "Speech Recognition not supported in this browser.";
+        STATUS_ICON.className = 'lucide lucide-alert-circle';
+      }
+    })();
+
+    // small utility: allow submitting manual text into history by double-clicking transcript area (dev convenience)
+    TRANSCRIPT.addEventListener('dblclick', ()=>{
+      const text = prompt('Add manual transcript to history (dev helper):','');
+      if(text) { addHistoryEntry(text,'text'); }
+    });
+
+    // expose addHistoryEntry globally for easy dev testing (optional)
+    window.FarmAssist = { addHistoryEntry };
+
   </script>
 </body>
 </html>
+
